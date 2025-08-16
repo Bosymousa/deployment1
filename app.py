@@ -1,59 +1,35 @@
 import streamlit as st
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+import numpy as np
 import joblib
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
 
-# عنوان التطبيق
-st.title("Wholesale Customers KMeans Clustering App")
-
-# تحميل الموديل المدرب
+# --- تحميل الموديل والـ Scaler المحفوظين ---
 try:
     model = joblib.load("KMeans_model.pkl")
-    st.success("✅ تم تحميل الموديل بنجاح")
+    scaler = joblib.load("scaler.pkl")   # لازم تكوني حفظتي الـ StandardScaler قبل التدريب
+    st.success("✅ تم تحميل الموديل والـ Scaler بنجاح")
 except:
-    st.error("⚠️ ملف KMeans_model.pkl مش موجود في نفس المجلد مع app.py")
+    st.error("⚠️ لازم يكون عندك KMeans_model.pkl و scaler.pkl في نفس المجلد مع app.py")
 
-# رفع البيانات
-uploaded_file = st.file_uploader("📂 ارفع ملف CSV (مثلاً Wholesale customers data.csv)", type=["csv"])
+# --- واجهة التطبيق ---
+st.title("🔮 Wholesale Customers KMeans Prediction App")
+st.write("ادخل بيانات العميل عشان نحدد هو ينتمي لأنهي Cluster")
 
-if uploaded_file is not None:
-    # قراءة البيانات
-    df = pd.read_csv(uploaded_file)
-    st.write("### البيانات الأصلية:")
-    st.dataframe(df.head())
+# --- إدخال بيانات العميل ---
+milk = st.number_input('Milk Spending', min_value=0, value=5000)
+grocery = st.number_input('Grocery Spending', min_value=0, value=8000)
+frozen = st.number_input('Frozen Spending', min_value=0, value=2000)
+delicassen = st.number_input('Delicassen Spending', min_value=0, value=500)
+detergents_paper = st.number_input('Detergents & Paper Spending', min_value=0, value=1000)
 
-    # الأعمدة المطلوبة للتدريب
-    features = ['Milk','Grocery','Frozen','Delicassen','Detergents_Paper']
+# --- زر التنبؤ ---
+if st.button("🔍 Predict Cluster"):
+    # تجهيز البيانات (نفس ترتيب التدريب)
+    new_data = np.array([[milk, grocery, frozen, delicassen, detergents_paper]])
 
-    # التحقق من وجود الأعمدة المطلوبة
-    missing_cols = [col for col in features if col not in df.columns]
-    if missing_cols:
-        st.error(f"⚠️ الأعمدة الناقصة: {missing_cols}")
-    else:
-        X = df[features].values
+    # تطبيق الـ Scaler
+    new_data_scaled = scaler.transform(new_data)
 
-        # Scaling
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
+    # تنبؤ بالـ Cluster
+    cluster_id = model.predict(new_data_scaled)[0]
 
-        # التنبؤ بالكلستر باستخدام الموديل المحفوظ
-        y_kmeans = model.predict(X_scaled)
-        df['cluster'] = y_kmeans
-
-        # PCA لعرض البيانات في 2D
-        pca = PCA(n_components=2)
-        pca_df = pca.fit_transform(X_scaled)
-        pca_df = pd.DataFrame(pca_df, columns=['PC1', 'PC2'])
-        pca_df['cluster'] = y_kmeans
-
-        st.write("### Visualization (PCA 2D)")
-        fig, ax = plt.subplots(figsize=(8,6))
-        sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="cluster", palette="Set2", ax=ax)
-        st.pyplot(fig)
-
-        # عرض متوسط القيم لكل Cluster
-        st.write("### متوسط القيم في كل Cluster")
-        st.dataframe(df.groupby('cluster')[features].mean())
+    st.success(f"✅ العميل يتبع الكلستر رقم: {cluster_id}")
